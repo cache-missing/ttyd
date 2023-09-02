@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 2.8.12)
 
 if(${CMAKE_VERSION} VERSION_LESS "3.12.0")
-    project(ttyd C) 
+    project(cacheline-console C CXX) 
     set(PROJECT_VERSION_MAJOR "1")
     set(PROJECT_VERSION_MINOR "7")
     set(PROJECT_VERSION_PATCH "3")
     set(PROJECT_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
 else()
     cmake_policy(SET CMP0048 NEW)
-    project(ttyd VERSION 1.7.3 LANGUAGES C)
+    project(cacheline-console VERSION 1.7.3 LANGUAGES C CXX)
 endif()
 
 find_package(Git)
@@ -58,11 +58,14 @@ if(JSON-C_FOUND)
     SET(JSON-C_LIBRARIES "${JSON-C_LIBRARY}")
 endif()
 
-find_package(ZLIB REQUIRED)
+set(ZLIB_INCLUDE_DIR "/opt/stage/x86_64/include")
+set(ZLIB_LIBRARY "/opt/stage/x86_64/lib/libz.a")
+
 find_package(Libwebsockets 3.2.0 REQUIRED)
 
 set(INCLUDE_DIRS ${ZLIB_INCLUDE_DIR} ${LIBWEBSOCKETS_INCLUDE_DIRS} ${JSON-C_INCLUDE_DIRS} ${LIBUV_INCLUDE_DIRS})
-set(LINK_LIBS ${ZLIB_LIBRARIES} ${LIBWEBSOCKETS_LIBRARIES} ${JSON-C_LIBRARIES} ${LIBUV_LIBRARIES})
+set (STATIC_LINK_LIBS ${JSON-C_LIBRARIES} ${LIBUV_LIBRARIES} ${LIBWEBSOCKETS_LIBRARIES} )
+# set (DYNAMIC_LINK_LIBS ${ZLIB_INCLUDE_DIR})
 
 set (CMAKE_REQUIRED_INCLUDES ${INCLUDE_DIRS})
 include(CheckSymbolExists)
@@ -75,26 +78,31 @@ endif()
 if(LWS_OPENSSL_ENABLED AND NOT LWS_MBEDTLS_ENABLED)
     find_package(OpenSSL REQUIRED)
     list(APPEND INCLUDE_DIRS ${OPENSSL_INCLUDE_DIR})
-    list(APPEND LINK_LIBS ${OPENSSL_LIBRARIES})
+    list(APPEND DYNAMIC_LINK_LIBS ${OPENSSL_LIBRARIES})
 endif()
 
-if(WIN32)
-    list(APPEND LINK_LIBS shell32 ws2_32)
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/app.rc.in ${CMAKE_CURRENT_BINARY_DIR}/app.rc @ONLY)
-    list(APPEND SOURCE_FILES ${CMAKE_CURRENT_BINARY_DIR}/app.rc)
-else()
-    find_library(LIBUTIL NAMES util)
-    if(LIBUTIL)
-        list(APPEND LINK_LIBS util)
-    endif()
-endif()
+add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES})
 
-add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 target_include_directories(${PROJECT_NAME} PUBLIC ${INCLUDE_DIRS})
-target_link_libraries(${PROJECT_NAME} ${LINK_LIBS})
+
+target_link_libraries(${PROJECT_NAME} 
+    util
+    ${DYNAMIC_LINK_LIBS}
+    ${STATIC_LINK_LIBS} 
+    dl
+    ${ZLIB_LIBRARY}
+    pthread
+)
+
+install(TARGETS ${PROJECT_NAME}
+    LIBRARY DESTINATION lib
+)
+
+add_executable(test src/main.cpp)
+set_property(TARGET test PROPERTY CXX_STANDARD 11)
+target_link_libraries(
+    test
+    ${PROJECT_NAME}
+)
+
 target_compile_definitions(${PROJECT_NAME} PRIVATE TTYD_VERSION="${PROJECT_VERSION}")
-
-include(GNUInstallDirs)
-
-install(TARGETS ${PROJECT_NAME} DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT prog)
-install(FILES man/ttyd.1 DESTINATION "${CMAKE_INSTALL_MANDIR}/man1" COMPONENT doc)

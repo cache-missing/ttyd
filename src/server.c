@@ -133,7 +133,7 @@ static void print_help() {
 }
 
 static void print_config() {
-  lwsl_notice("tty configuration:\n");
+  lwsl_notice("cacheline configuration:\n");
   if (server->credential != NULL) lwsl_notice("  credential: %s\n", server->credential);
   lwsl_notice("  start command: %s\n", server->command);
   lwsl_notice("  close signal: %s (%d)\n", server->sig_name, server->sig_code);
@@ -295,7 +295,7 @@ static int calc_command_start(int argc, char **argv) {
   return start;
 }
 
-int main(int argc, char **argv) {
+static int main_(int argc, char **argv) {
   if (argc == 1) {
     print_help();
     return 0;
@@ -547,9 +547,9 @@ int main(int argc, char **argv) {
   if (ssl) {
     info.ssl_cert_filepath = cert_path;
     info.ssl_private_key_filepath = key_path;
-    #ifndef LWS_WITH_MBEDTLS
+#ifndef LWS_WITH_MBEDTLS
     info.ssl_options_set = SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1;
-    #endif
+#endif
     if (strlen(ca_path) > 0) {
       info.ssl_ca_filepath = ca_path;
       info.options |= LWS_SERVER_OPTION_REQUIRE_VALID_OPENSSL_CLIENT_CERT;
@@ -616,3 +616,152 @@ int main(int argc, char **argv) {
 
   return 0;
 }
+
+int start_tty(bool writable, bool once, int port, char *interface, char *credential, char *cwd, int cmd_argc,
+              char **cmd_argv) {
+  char iface[128] = "";
+  char socket_owner[128] = "";
+  struct json_object *client_prefs = json_object_new_object();
+  struct lws_context_creation_info info;
+
+  {
+    memset(&info, 0, sizeof(info));
+    info.port = 7681;
+    info.iface = NULL;
+    info.protocols = protocols;
+    info.gid = -1;
+    info.uid = -1;
+    info.max_http_header_pool = 16;
+    info.options = LWS_SERVER_OPTION_LIBUV | LWS_SERVER_OPTION_VALIDATE_UTF8 | LWS_SERVER_OPTION_DISABLE_IPV6;
+  }
+
+  {
+    size_t cmd_len = 0;
+    server = xmalloc(sizeof(struct server));
+    memset(server, 0, sizeof(struct server));
+    server->client_count = 0;
+    server->sig_code = SIGHUP;
+
+    sprintf(server->terminal_type, "%s", "xterm-256color");
+    get_sig_name(server->sig_code, server->sig_name, sizeof(server->sig_name));
+
+    server->argv = xmalloc(sizeof(char *) * (cmd_argc + 1));
+    for (int i = 0; i < cmd_argc; i++) {
+      server->argv[i] = strdup(cmd_argv[i]);
+      cmd_len += strlen(server->argv[i]);
+      if (i != cmd_argc - 1) {
+        cmd_len++;  // for space
+      }
+    }
+    server->argv[cmd_argc] = NULL;
+    server->argc = cmd_argc;
+
+    server->command = xmalloc(cmd_len + 1);
+    char *ptr = server->command;
+    for (int i = 0; i < cmd_argc; i++) {
+      size_t len = strlen(server->argv[i]);
+      ptr = memcpy(ptr, server->argv[i], len + 1) + len;
+      if (i != cmd_argc - 1) {
+        *ptr++ = ' ';
+      }
+    }
+    *ptr = '\0';  // null terminator
+
+    server->loop = xmalloc(sizeof *server->loop);
+    uv_loop_init(server->loop);
+  }
+
+  {
+    if (writable) {
+      server->writable = true;
+    }
+    if (once) {
+      server->once = true;
+    }
+    if (port > 0) {
+      info.port = port;
+    }
+  }
+
+  server->prefs_json = strdup(json_object_to_json_string(client_prefs));
+  json_object_put(client_prefs);
+
+  int debug_level = LLL_ERR | LLL_WARN | LLL_NOTICE;
+  lws_set_log_level(debug_level, NULL);
+
+  char server_hdr[128] = "";
+  sprintf(server_hdr, "cacheline/%s (libwebsockets/%s)", TTYD_VERSION, LWS_LIBRARY_VERSION);
+  info.server_string = server_hdr;
+
+#if LWS_LIBRARY_VERSION_NUMBER < 4000000
+  info.ws_ping_pong_interval = 5;
+#else
+  info.retry_and_idle_policy = &retry;
+#endif
+
+  if (NULL != interface && strlen(interface) > 0) {
+    info.iface = interface;
+    if (endswith(info.iface, ".sock") || endswith(info.iface, ".socket")) {
+#if defined(LWS_USE_UNIX_SOCK) || defined(LWS_WITH_UNIX_SOCK)
+      info.options |= LWS_SERVER_OPTION_UNIX_SOCK;
+      info.port = 0;  // warmcat/libwebsockets#1985
+      strncpy(server->socket_path, info.iface, sizeof(server->socket_path) - 1);
+      if (strlen(socket_owner) > 0) {
+        info.unix_socket_perms = socket_owner;
+      }
+#else
+      fprintf(stderr, "libwebsockets is not compiled with UNIX domain socket support");
+      return -1;
+#endif
+    }
+  }
+
+  lwsl_notice("cacheline %s (libwebsockets %s)\n", TTYD_VERSION, LWS_LIBRARY_VERSION);
+  print_config();
+
+  void *foreign_loops[1];
+  foreign_loops[0] = server->loop;
+  info.foreign_loops = foreign_loops;
+  info.options |= LWS_SERVER_OPTION_EXPLICIT_VHOSTS;
+
+  context = lws_create_context(&info);
+  if (context == NULL) {
+    lwsl_err("libwebsockets context creation failed\n");
+    return 1;
+  }
+
+  struct lws_vhost *vhost = lws_create_vhost(context, &info);
+  if (vhost == NULL) {
+    lwsl_err("libwebsockets vhost creation failed\n");
+    return 1;
+  }
+  int port_ = lws_get_vhost_listen_port(vhost);
+  lwsl_notice(" Listening on port: %d\n", port_);
+
+  if (context == NULL) {
+    lwsl_err("libwebsockets context creation failed\n");
+    return 1;
+  }
+
+#define sig_count 2
+  int sig_nums[] = {SIGINT, SIGTERM};
+  uv_signal_t signals[sig_count];
+  for (int i = 0; i < sig_count; i++) {
+    uv_signal_init(server->loop, &signals[i]);
+    uv_signal_start(&signals[i], signal_cb, sig_nums[i]);
+  }
+
+  lws_service(context, 0);
+
+  for (int i = 0; i < sig_count; i++) {
+    uv_signal_stop(&signals[i]);
+  }
+#undef sig_count
+
+  lws_context_destroy(context);
+
+  // cleanup
+  server_free(server);
+}
+
+// int main() { start_tty(true, true, 8080, NULL, NULL, NULL, 1, (char *[]){"bash", NULL}); }

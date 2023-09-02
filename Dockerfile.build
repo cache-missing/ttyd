@@ -1,0 +1,7 @@
+FROM quay.io/pypa/manylinux2014_x86_64
+
+WORKDIR /app/
+
+COPY . /app
+
+RUN bash /app/build.sh
