@@ -9,7 +9,7 @@ TARGET="x86_64"
 BUILD_DIR="${BUILD_ROOT}"
 STAGE_DIR=${STAGE_ROOT}/${TARGET}
 
-ZLIB_VERSION="1.3"
+ZLIB_VERSION="1.3.1"
 JSON_C_VERSION="${JSON_C_VERSION:-0.16}"
 MBEDTLS_VERSION="${MBEDTLS_VERSION:-2.28.1}"
 LIBUV_VERSION="${LIBUV_VERSION:-1.44.2}"
@@ -19,7 +19,7 @@ mkdir -p "${BUILD_ROOT}" || true
 
 build_zlib() {
   echo "=== Building zlib-${ZLIB_VERSION} (${TARGET})..."
-  curl -fSsLo- "https://zlib.net/zlib-${ZLIB_VERSION}.tar.gz" | tar xz -C "${BUILD_DIR}"
+  curl -fSsLo- "https://www.zlib.net/zlib-${ZLIB_VERSION}.tar.gz" | tar xz -C "${BUILD_DIR}"
   pushd "${BUILD_DIR}"/zlib-"${ZLIB_VERSION}"
   env CHOST="${TARGET}" CFLAGS="-O3 -fPIC" ./configure --static --archs="-fPIC" --prefix="${STAGE_DIR}"
   make -j"$(nproc)" install
