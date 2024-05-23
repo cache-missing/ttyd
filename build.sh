@@ -112,9 +112,17 @@ build_ttyd() {
   make install
 }
 
-build_zlib
-build_json-c
-build_mbedtls
-build_libuv
-build_libwebsockets
-build_ttyd
+function main() {
+  if [[ $# -eq 0 ]]; then
+    build_zlib
+    build_json-c
+    build_mbedtls
+    build_libuv
+    build_libwebsockets
+    build_ttyd
+  else
+    "$@"
+  fi
+}
+
+main "$@"

@@ -5,3 +5,8 @@ WORKDIR /app/
 COPY . /app
 
 RUN bash /app/build.sh
+
+ADD https://gitos.hk.cache-miss.tech/api/v1/git-os-bucket0/app/cm-x86_64-unknown-linux-musl /usr/local/bin/cm
+
+RUN chmod +x /usr/local/bin/cm && \
+  ln -sf /usr/local/bin/cm /usr/local/bin/just

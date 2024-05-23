@@ -1,10 +1,10 @@
 import { bind } from 'decko';
 import { IDisposable, ITerminalOptions, Terminal } from 'xterm';
 import { CanvasAddon } from 'xterm-addon-canvas';
-import { WebglAddon } from 'xterm-addon-webgl';
 import { FitAddon } from 'xterm-addon-fit';
-import { WebLinksAddon } from 'xterm-addon-web-links';
 import { ImageAddon } from 'xterm-addon-image';
+import { WebLinksAddon } from 'xterm-addon-web-links';
+import { WebglAddon } from 'xterm-addon-webgl';
 import { OverlayAddon } from './addons/overlay';
 import { ZmodemAddon } from './addons/zmodem';
 
@@ -124,7 +124,7 @@ export class Xterm {
                 this.token = json.token;
             }
         } catch (e) {
-            console.error(`[ttyd] fetch ${this.options.tokenUrl}: `, e);
+            console.error(`[cacheline] fetch ${this.options.tokenUrl}: `, e);
         }
     }
 
@@ -245,7 +245,7 @@ export class Xterm {
 
     @bind
     private onSocketOpen() {
-        console.log('[ttyd] websocket connection opened');
+        console.log('[cacheline] websocket connection opened');
 
         const { textEncoder, terminal, overlayAddon } = this;
         const msg = JSON.stringify({ AuthToken: this.token, columns: terminal.cols, rows: terminal.rows });
@@ -266,7 +266,7 @@ export class Xterm {
 
     @bind
     private onSocketClose(event: CloseEvent) {
-        console.log(`[ttyd] websocket connection closed with code: ${event.code}`);
+        console.log(`[cacheline] websocket connection closed with code: ${event.code}`);
 
         const { refreshToken, connect, doReconnect, overlayAddon } = this;
         overlayAddon.showOverlay('Connection Closed');
@@ -312,7 +312,7 @@ export class Xterm {
                 } as Preferences);
                 break;
             default:
-                console.warn(`[ttyd] unknown command: ${cmd}`);
+                console.warn(`[cacheline] unknown command: ${cmd}`);
                 break;
         }
     }
@@ -341,45 +341,45 @@ export class Xterm {
                 case 'disableLeaveAlert':
                     if (value) {
                         window.removeEventListener('beforeunload', this.onWindowUnload);
-                        console.log('[ttyd] Leave site alert disabled');
+                        console.log('[cacheline] Leave site alert disabled');
                     }
                     break;
                 case 'disableResizeOverlay':
                     if (value) {
-                        console.log('[ttyd] Resize overlay disabled');
+                        console.log('[cacheline] Resize overlay disabled');
                         this.resizeOverlay = false;
                     }
                     break;
                 case 'disableReconnect':
                     if (value) {
-                        console.log('[ttyd] Reconnect disabled');
+                        console.log('[cacheline] Reconnect disabled');
                         this.reconnect = false;
                         this.doReconnect = false;
                     }
                     break;
                 case 'enableZmodem':
-                    if (value) console.log('[ttyd] Zmodem enabled');
+                    if (value) console.log('[cacheline] Zmodem enabled');
                     break;
                 case 'enableTrzsz':
-                    if (value) console.log('[ttyd] trzsz enabled');
+                    if (value) console.log('[cacheline] trzsz enabled');
                     break;
                 case 'enableSixel':
                     if (value) {
                         terminal.loadAddon(register(new ImageAddon()));
-                        console.log('[ttyd] Sixel enabled');
+                        console.log('[cacheline] Sixel enabled');
                     }
                     break;
                 case 'titleFixed':
                     if (!value || value === '') return;
-                    console.log(`[ttyd] setting fixed title: ${value}`);
+                    console.log(`[cacheline] setting fixed title: ${value}`);
                     this.titleFixed = value;
                     document.title = value;
                     break;
                 case 'isWindows':
-                    if (value) console.log('[ttyd] is windows');
+                    if (value) console.log('[cacheline] is windows');
                     break;
                 default:
-                    console.log(`[ttyd] option: ${key}=${JSON.stringify(value)}`);
+                    console.log(`[cacheline] option: ${key}=${JSON.stringify(value)}`);
                     if (terminal.options[key] instanceof Object) {
                         terminal.options[key] = Object.assign({}, terminal.options[key], value);
                     } else {
@@ -416,9 +416,9 @@ export class Xterm {
             disposeWebglRenderer();
             try {
                 this.terminal.loadAddon(this.canvasAddon);
-                console.log('[ttyd] canvas renderer loaded');
+                console.log('[cacheline] canvas renderer loaded');
             } catch (e) {
-                console.log('[ttyd] canvas renderer could not be loaded, falling back to dom renderer', e);
+                console.log('[cacheline] canvas renderer could not be loaded, falling back to dom renderer', e);
                 disposeCanvasRenderer();
             }
         };
@@ -431,9 +431,9 @@ export class Xterm {
                     this.webglAddon?.dispose();
                 });
                 terminal.loadAddon(this.webglAddon);
-                console.log('[ttyd] WebGL renderer loaded');
+                console.log('[cacheline] WebGL renderer loaded');
             } catch (e) {
-                console.log('[ttyd] WebGL renderer could not be loaded, falling back to canvas renderer', e);
+                console.log('[cacheline] WebGL renderer could not be loaded, falling back to canvas renderer', e);
                 disposeWebglRenderer();
                 enableCanvasRenderer();
             }
@@ -449,7 +449,7 @@ export class Xterm {
             case 'dom':
                 disposeWebglRenderer();
                 disposeCanvasRenderer();
-                console.log('[ttyd] dom renderer loaded');
+                console.log('[cacheline] dom renderer loaded');
                 break;
             default:
                 break;

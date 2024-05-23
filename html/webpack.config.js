@@ -52,7 +52,7 @@ const baseConfig = {
                 removeComments: true,
                 collapseWhitespace: true,
             },
-            title: 'ttyd - Terminal',
+            title: 'cacheline - Terminal',
             template: './template.html',
         }),
     ],

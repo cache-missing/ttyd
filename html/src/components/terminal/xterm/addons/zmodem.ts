@@ -1,8 +1,8 @@
 import { bind } from 'decko';
 import { saveAs } from 'file-saver';
+import { TrzszFilter } from 'trzsz';
 import { IDisposable, ITerminalAddon, Terminal } from 'xterm';
 import * as Zmodem from 'zmodem.js/src/zmodem_browser';
-import { TrzszFilter } from 'trzsz';
 
 export interface ZmodeOptions {
     zmodem: boolean;
@@ -44,7 +44,7 @@ export class ZmodemAddon implements ITerminalAddon {
                 this.sentry.consume(data);
             }
         } catch (e) {
-            console.error('[ttyd] zmodem consume: ', e);
+            console.error('[cacheline] zmodem consume: ', e);
             this.reset();
         }
     }
@@ -82,8 +82,8 @@ export class ZmodemAddon implements ITerminalAddon {
             event.preventDefault();
             this.trzszFilter
                 .uploadFiles((event as DragEvent).dataTransfer?.items as DataTransferItemList)
-                .then(() => console.log('[ttyd] upload success'))
-                .catch(err => console.log('[ttyd] upload failed: ' + err));
+                .then(() => console.log('[cacheline] upload success'))
+                .catch(err => console.log('[cacheline] upload failed: ' + err));
         });
         this.disposables.push(terminal.onResize(size => this.trzszFilter.setTerminalColumns(size.cols)));
     }
